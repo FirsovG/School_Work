@@ -1,8 +1,14 @@
+import sys
+import sqlite3
+from json import dumps, loads
+
 from PyQt5 import QtWidgets, QtCore
 from UI.mainwindow import Ui_mainWindow
-from configuration import conf_01 as config
-import sys
+from configuration import first_step, second_step
+
 app = QtWidgets.QApplication(sys.argv)
+db_connection = sqlite3.connect("./database/school_work.db")
+db = db_connection.cursor()
 
 class MainApp(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
@@ -18,17 +24,23 @@ class MainApp(QtWidgets.QMainWindow):
         self.build_rows(self.column_names)
 
     def confuration(self):
-        self.first_step = config.Configuration()
-        self.first_step.show()
-        if self.first_step.exec_():
-            self.year_of_apprenticeship = self.first_step.year_of_apprenticeship
-            self.column_count = self.first_step.column_count
+        for row in db.execute("SELECT * FROM tbl_config"):
+            conf_done = row[0]
+            col_names = row[3]
+        if conf_done == 0:
+            self.first_step = first_step.Configuration()
+            self.first_step.show()
+            if self.first_step.exec_():
+                self.year_of_apprenticeship = self.first_step.year_of_apprenticeship
+                self.column_count = self.first_step.column_count
 
-        self.second_step = config.ColumnConfiguration(self.column_count)
-        self.second_step.show()
-        if self.second_step.exec_():
-            print(self.second_step.column_name)
-            self.column_names = self.second_step.column_name
+            self.second_step = second_step.ColumnConfiguration(self.column_count)
+            self.second_step.show()
+            if self.second_step.exec_():
+                print(self.second_step.column_name)
+                self.column_names = self.second_step.column_name
+        else:
+            self.column_names = loads(col_names)
 
     def build_rows(self, names):
         cols = len(names)
@@ -46,4 +58,6 @@ main = MainApp()
 
 main.show()
 
+db_connection.commit()
+db_connection.close()
 sys.exit(app.exec_())
