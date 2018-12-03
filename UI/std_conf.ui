@@ -73,23 +73,7 @@
     </font>
    </property>
    <property name="text">
-    <string>Maximal year of A.</string>
-   </property>
-  </widget>
-  <widget class="QSpinBox" name="max_YOA_spin_box">
-   <property name="geometry">
-    <rect>
-     <x>240</x>
-     <y>150</y>
-     <width>111</width>
-     <height>22</height>
-    </rect>
-   </property>
-   <property name="minimum">
-    <number>1</number>
-   </property>
-   <property name="maximum">
-    <number>7</number>
+    <string>Name of school</string>
    </property>
   </widget>
   <widget class="QLabel" name="colums_count_label">
@@ -145,6 +129,16 @@
    </property>
    <property name="text">
     <string>Next</string>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="lineEdit">
+   <property name="geometry">
+    <rect>
+     <x>212</x>
+     <y>150</y>
+     <width>141</width>
+     <height>20</height>
+    </rect>
    </property>
   </widget>
  </widget>
