@@ -27,11 +27,12 @@ class MainApp(QtWidgets.QMainWindow):
         for row in db.execute("SELECT * FROM tbl_config"):
             conf_done = row[0]
             col_names = row[3]
+            school_name = row[1]
         if conf_done == 0:
             self.first_step = first_step.Configuration()
             self.first_step.show()
             if self.first_step.exec_():
-                self.year_of_apprenticeship = self.first_step.year_of_apprenticeship
+                self.school_name = self.first_step.school_name
                 self.column_count = self.first_step.column_count
 
             self.second_step = second_step.ColumnConfiguration(self.column_count)
@@ -41,6 +42,8 @@ class MainApp(QtWidgets.QMainWindow):
                 self.column_names = self.second_step.column_name
         else:
             self.column_names = loads(col_names)
+            self.school_name = school_name
+        self.setWindowTitle(self.school_name)
 
     def build_rows(self, names):
         cols = len(names)

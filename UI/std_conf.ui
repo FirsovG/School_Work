@@ -57,7 +57,7 @@
     <set>Qt::AlignCenter</set>
    </property>
   </widget>
-  <widget class="QLabel" name="max_YOA_label">
+  <widget class="QLabel" name="schoolNameLabel">
    <property name="geometry">
     <rect>
      <x>50</x>
@@ -131,7 +131,7 @@
     <string>Next</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="lineEdit">
+  <widget class="QLineEdit" name="schoolNameEdit">
    <property name="geometry">
     <rect>
      <x>212</x>

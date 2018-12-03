@@ -27,6 +27,6 @@ class Configuration(QtWidgets.QDialog):
 
     def next_step(self):
         self.column_count = self.ui.colums_count_spin_box.value()
-        self.year_of_apprenticeship = self.ui.max_YOA_spin_box.value()
+        self.year_of_apprenticeship = self.ui.schoolNameEdit.text()
 
         self.accept()
