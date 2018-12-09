@@ -2,6 +2,7 @@ import sys
 import sqlite3
 from json import dumps, loads
 from copy import deepcopy
+import csv
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from UI.mainwindow import Ui_mainWindow
@@ -29,6 +30,11 @@ class MainApp(QtWidgets.QMainWindow):
         self.save_key = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+S"), self)
         self.save_key.activated.connect(self.save_to_db)
 
+        self.add_student_key = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+A"), self)
+        self.add_student_key.activated.connect(self.add_student)
+
+        self.csv_export_key = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+E"), self)
+        self.csv_export_key.activated.connect(self.csv_export)
 
     def set_up(self):
         try:
@@ -63,32 +69,39 @@ class MainApp(QtWidgets.QMainWindow):
 
         for row in self.db.execute('SELECT * FROM tab_conf'):
             self.school_name = row[0]
-            self.column_count = row[1]
+            self.column_count = row[1] + 1
             self.column_names = loads(row[2])
+            self.column_names.insert(0, 'row_id')
 
         self.setWindowTitle(self.school_name)
         cols = len(self.column_names)
         self.ui.tableWidget.setColumnCount(cols)
-        self.ui.tableWidget.setRowCount(18)
         _translate = QtCore.QCoreApplication.translate
+
         columns = []
         for col in range(cols):
             columns.append(QtWidgets.QTableWidgetItem())
             self.ui.tableWidget.setHorizontalHeaderItem(col, columns[col])
             item = self.ui.tableWidget.horizontalHeaderItem(col)
-            item.setText(_translate("mainWindow", self.column_names[col]))
+            if col == 0:
+                item.setText(_translate("mainWindow", "row_id"))
+                self.ui.tableWidget.setColumnHidden(col, True)
+            else:
+                item.setText(_translate("mainWindow", self.column_names[col]))
 
     def load_data(self):
         try:
             self.db.execute("SELECT * FROM tab_data")
         except sqlite3.OperationalError:
-            sql_command = "row_id INTEGER not null PRIMARY KEY AUTOINCREMENT,"
-            for row in self.db.execute("SELECT * FROM tab_conf"):
-                col_names = loads(str(row[2]))
-                for col in col_names:
+            sql_command = ""
+            col_names = self.column_names
+            for col in col_names:
+                if col == 'row_id':
+                    sql_command += "row_id INTEGER not null PRIMARY KEY AUTOINCREMENT,"
+                else:
                     sql_command += f"{col} text,"
-                    if col == col_names[-1]:
-                        sql_command = sql_command[:-1]
+                if col == col_names[-1]:
+                    sql_command = sql_command[:-1]
 
             create_table = '''
                 CREATE TABLE tab_data
@@ -101,15 +114,24 @@ class MainApp(QtWidgets.QMainWindow):
 
         row_count = 0
         for data_row in self.db.execute("SELECT * FROM tab_data"):
+            self.ui.tableWidget.insertRow(row_count)
             for col in range(self.column_count):
-                self.ui.tableWidget.setItem(row_count, col, QtWidgets.QTableWidgetItem(data_row[col]))
+                if data_row[col] == None:
+                    tmp = ''
+                else:
+                    tmp = data_row[col]
+                self.ui.tableWidget.setItem(row_count, col, QtWidgets.QTableWidgetItem(str(tmp)))
             row_count += 1
 
     def save_to_db(self):
+        row_exists = []
+        for row in self.db.execute("SELECT row_id FROM tab_data"):
+            row_exists.append(str(row[0]))
+
         for row in range(self.ui.tableWidget.rowCount()):
             db_cols = deepcopy(self.column_names)
-            tmp = []
             col_with_null_value = []
+            tmp = []
             for col in range(self.column_count):
                 if hasattr(self.ui.tableWidget.item(row, col), 'text'):
                     if self.ui.tableWidget.item(row, col).text() == '':
@@ -118,24 +140,47 @@ class MainApp(QtWidgets.QMainWindow):
                         tmp.append(self.ui.tableWidget.item(row, col).text())
                 else:
                     col_with_null_value.append(col)
-
             for index in sorted(col_with_null_value, reverse=True):
                 del db_cols[index]
 
-            if col_with_null_value == []:
-                self.db.execute('INSERT INTO tab_data VALUES ('+ ('?,' * len(db_cols))[:-1] +');', tmp)
-
-            elif tmp == []:
+            if tmp == []:
                 break
 
-            else:
-                self.db.execute('INSERT INTO tab_data({0}) VALUES ({1});'.format(",".join(db_cols),
-                                                                                 ('?,' * len(db_cols))[:-1]), tmp)
+            elif tmp[0] in row_exists:
+                for empty_cols in col_with_null_value:
+                    tmp.insert(empty_cols, None)
+                for db_row in self.db.execute('SELECT * FROM tab_data WHERE row_id = {0}'.format(tmp[0])):
+                    for col in range(1, len(db_row)):
+                        if tmp[col] != db_row[col]:
+                            if tmp[col] == None:
+                                self.db.execute("UPDATE tab_data SET {0} = null "
+                                                "where row_id = {1}".format(self.column_names[col], tmp[0]))
+                            else:
+                                self.db.execute("UPDATE tab_data SET {0} = '{1}' "
+                                                "where row_id = {2}".format(self.column_names[col], tmp[col], tmp[0]))
 
-    def closeEvent(self, QCloseEvent):
+
+            elif col_with_null_value != [] or int(tmp[0]) not in row_exists:
+                self.db.execute('INSERT INTO tab_data({0}) VALUES ({1});'.format(",".join(db_cols)
+                                                                                 , ('?,' * len(db_cols))[:-1]), tmp)
+
+    def add_student(self):
+        last_row = self.ui.tableWidget.rowCount()
+        self.ui.tableWidget.insertRow(last_row)
+
+    def csv_export(self):
+        file_name = QtWidgets.QFileDialog.getSaveFileName(self, directory='/home', caption='Open File', filter='All Files (*.csv)')[0]
+        if file_name:
+            with open(file_name, 'w', newline='') as file:
+                writer = csv.writer(file, delimiter=',')
+                for row in self.db.execute('SELECT * FROM tab_data'):
+                    writer.writerow(list(row[1:]))
+
+
+    def closeEvent(self, event):
         self.db_connection.commit()
         self.db_connection.close()
-        QCloseEvent.accept()
+        event.accept()
 
 
 
