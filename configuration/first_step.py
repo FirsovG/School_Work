@@ -9,8 +9,9 @@ class Configuration(QtWidgets.QDialog):
         self.ui = Ui_std_conf()
         self.ui.setupUi(self)
 
-        self.school_name = 0
+        self.school_name = ""
         self.column_count = 0
+        self.max_year_of_apprenticeship = 0
 
         self.ui.next_button.clicked.connect(self.next_step)
 
@@ -26,7 +27,8 @@ class Configuration(QtWidgets.QDialog):
             event.ignore()
 
     def next_step(self):
-        self.column_count = self.ui.colums_count_spin_box.value()
         self.school_name = self.ui.schoolNameEdit.text()
+        self.max_year_of_apprenticeship = self.ui.myoaEdit.value()
+        self.column_count = self.ui.colums_count_spin_box.value()
 
         self.accept()

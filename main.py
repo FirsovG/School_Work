@@ -19,20 +19,24 @@ class MainApp(QtWidgets.QMainWindow):
         self.db_connection = sqlite3.connect("./database/school_work.db")
         self.db = self.db_connection.cursor()
 
-        # self.year_of_apprenticeship = 0
+        self.year_of_apprenticeship = 0
         self.school_name = ""
         self.column_count = 0
         self.column_names = []
+        self.column_types = []
 
         self.set_up()
         self.load_data()
 
+        self.ui.actionSave_Ctrl_S.triggered.connect(self.save_to_db)
         self.save_key = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+S"), self)
         self.save_key.activated.connect(self.save_to_db)
 
+        self.ui.actionAdd_student_Ctrl_A.triggered.connect(self.add_student)
         self.add_student_key = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+A"), self)
         self.add_student_key.activated.connect(self.add_student)
 
+        self.ui.actionExport_as_CSV.triggered.connect(self.csv_export)
         self.csv_export_key = QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+E"), self)
         self.csv_export_key.activated.connect(self.csv_export)
 
@@ -44,33 +48,37 @@ class MainApp(QtWidgets.QMainWindow):
             self.first_step.show()
             if self.first_step.exec_():
                 self.school_name = self.first_step.school_name
+                self.year_of_apprenticeship = self.first_step.max_year_of_apprenticeship
                 self.column_count = self.first_step.column_count
 
             self.second_step = second_step.ColumnConfiguration(self.column_count)
             self.second_step.show()
             if self.second_step.exec_():
                 self.column_names = self.second_step.column_name
+                self.column_types = self.second_step.column_name_type
 
             create_table = '''
 
                                 CREATE TABLE tab_conf
                                 (
                                     name_of_school varchar(100),
+                                    max_year_of_apprenticeship,
                                     column_count int,
                                     column_names text
                                 );
 
                             '''
             insert_values = '''
-                                INSERT INTO tab_conf VALUES(?, ?, ?);
+                                INSERT INTO tab_conf VALUES(?, ?, ?, ?);
                             '''
+
             self.db.execute(create_table)
-            self.db.execute(insert_values, (self.school_name, self.column_count, dumps(self.column_names)))
+            self.db.execute(insert_values, (self.school_name, self.year_of_apprenticeship, self.column_count, dumps(self.column_names)))
 
         for row in self.db.execute('SELECT * FROM tab_conf'):
             self.school_name = row[0]
-            self.column_count = row[1] + 1
-            self.column_names = loads(row[2])
+            self.column_count = row[2] + 1
+            self.column_names = loads(row[3])
             self.column_names.insert(0, 'row_id')
 
         self.setWindowTitle(self.school_name)
@@ -93,14 +101,16 @@ class MainApp(QtWidgets.QMainWindow):
         try:
             self.db.execute("SELECT * FROM tab_data")
         except sqlite3.OperationalError:
-            sql_command = ""
-            col_names = self.column_names
-            for col in col_names:
-                if col == 'row_id':
-                    sql_command += "row_id INTEGER not null PRIMARY KEY AUTOINCREMENT,"
-                else:
-                    sql_command += f"{col} text,"
-                if col == col_names[-1]:
+            sql_command = "row_id INTEGER not null PRIMARY KEY AUTOINCREMENT,"
+            for col in range(len(self.column_types)):
+                if self.column_types[col] == 'Number':
+                    self.column_types[col] = 'int'
+
+                if self.column_types[col] == 'Year of Apprenticeship':
+                    self.column_types[col] = 'int'
+
+                sql_command += f"{self.column_names[col + 1]} {self.column_types[col]},"
+                if self.column_names[col + 1] == self.column_names[-1]:
                     sql_command = sql_command[:-1]
 
             create_table = '''
