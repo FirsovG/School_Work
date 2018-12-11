@@ -64,22 +64,26 @@ class MainApp(QtWidgets.QMainWindow):
                                     name_of_school varchar(100),
                                     max_year_of_apprenticeship,
                                     column_count int,
-                                    column_names text
+                                    column_names text,
+                                    column_types text
                                 );
 
                             '''
             insert_values = '''
-                                INSERT INTO tab_conf VALUES(?, ?, ?, ?);
+                                INSERT INTO tab_conf VALUES(?, ?, ?, ?, ?);
                             '''
 
             self.db.execute(create_table)
-            self.db.execute(insert_values, (self.school_name, self.year_of_apprenticeship, self.column_count, dumps(self.column_names)))
+            self.db.execute(insert_values, (self.school_name, self.year_of_apprenticeship, self.column_count,
+                                            dumps(self.column_names), dumps(self.column_types)))
 
         for row in self.db.execute('SELECT * FROM tab_conf'):
             self.school_name = row[0]
+            self.year_of_apprenticeship = row[1]
             self.column_count = row[2] + 1
             self.column_names = loads(row[3])
             self.column_names.insert(0, 'row_id')
+            self.column_types = loads(row[4])
 
         self.setWindowTitle(self.school_name)
         cols = len(self.column_names)
@@ -93,7 +97,7 @@ class MainApp(QtWidgets.QMainWindow):
             item = self.ui.tableWidget.horizontalHeaderItem(col)
             if col == 0:
                 item.setText(_translate("mainWindow", "row_id"))
-                self.ui.tableWidget.setColumnHidden(col, True)
+                self.ui.tableWidget.setColumnHidden(col, False)
             else:
                 item.setText(_translate("mainWindow", self.column_names[col]))
 
@@ -104,10 +108,10 @@ class MainApp(QtWidgets.QMainWindow):
             sql_command = "row_id INTEGER not null PRIMARY KEY AUTOINCREMENT,"
             for col in range(len(self.column_types)):
                 if self.column_types[col] == 'Number':
-                    self.column_types[col] = 'int'
+                    self.column_types[col] = 'INTEGER'
 
                 if self.column_types[col] == 'Year of Apprenticeship':
-                    self.column_types[col] = 'int'
+                    self.column_types[col] = 'INTEGER'
 
                 sql_command += f"{self.column_names[col + 1]} {self.column_types[col]},"
                 if self.column_names[col + 1] == self.column_names[-1]:
@@ -134,45 +138,56 @@ class MainApp(QtWidgets.QMainWindow):
             row_count += 1
 
     def save_to_db(self):
-        row_exists = []
-        for row in self.db.execute("SELECT row_id FROM tab_data"):
-            row_exists.append(str(row[0]))
-
         for row in range(self.ui.tableWidget.rowCount()):
+
+            row_exists = []
+            for exist in self.db.execute("SELECT row_id FROM tab_data"):
+                row_exists.append(str(exist[0]))
+
             db_cols = deepcopy(self.column_names)
             col_with_null_value = []
-            tmp = []
+            values = []
             for col in range(self.column_count):
                 if hasattr(self.ui.tableWidget.item(row, col), 'text'):
                     if self.ui.tableWidget.item(row, col).text() == '':
                         col_with_null_value.append(col)
                     else:
-                        tmp.append(self.ui.tableWidget.item(row, col).text())
+                        tmp = self.ui.tableWidget.item(row, col).text()
+                        if self.column_types[col - 1] == 'Number'\
+                                or self.column_types[col - 1] == 'Year of Apprenticeship':
+                            if tmp.isdigit():
+                                tmp = int(tmp)
+                            else:
+                                self.error = QtWidgets.QErrorMessage()
+                                self.error.showMessage("Please enter a Number into \n"
+                                                       f"row:{row + 1} col:{col}")
+                                return
+                        values.append(tmp)
                 else:
                     col_with_null_value.append(col)
             for index in sorted(col_with_null_value, reverse=True):
                 del db_cols[index]
 
-            if tmp == []:
+            if values == []:
                 break
 
-            elif tmp[0] in row_exists:
+            elif values[0] in row_exists:
                 for empty_cols in col_with_null_value:
-                    tmp.insert(empty_cols, None)
-                for db_row in self.db.execute('SELECT * FROM tab_data WHERE row_id = {0}'.format(tmp[0])):
+                    values.insert(empty_cols, None)
+                for db_row in self.db.execute('SELECT * FROM tab_data WHERE row_id = {0}'.format(values[0])):
                     for col in range(1, len(db_row)):
-                        if tmp[col] != db_row[col]:
-                            if tmp[col] == None:
+                        if values[col] != db_row[col]:
+                            if values[col] == None:
                                 self.db.execute("UPDATE tab_data SET {0} = null "
-                                                "where row_id = {1}".format(self.column_names[col], tmp[0]))
+                                                "where row_id = {1}".format(self.column_names[col], values[0]))
                             else:
                                 self.db.execute("UPDATE tab_data SET {0} = '{1}' "
-                                                "where row_id = {2}".format(self.column_names[col], tmp[col], tmp[0]))
+                                                "where row_id = {2}".format(self.column_names[col], values[col], values[0]))
 
-
-            elif col_with_null_value != [] or int(tmp[0]) not in row_exists:
+            elif col_with_null_value != [] or int(values[0]) not in row_exists:
                 self.db.execute('INSERT INTO tab_data({0}) VALUES ({1});'.format(",".join(db_cols)
-                                                                                 , ('?,' * len(db_cols))[:-1]), tmp)
+                                                                                 , ('?,' * len(db_cols))[:-1]), values)
+                self.ui.tableWidget.setItem(row, 0, QtWidgets.QTableWidgetItem(str(int(row_exists[-1]) + 1)))
 
     def add_student(self):
         last_row = self.ui.tableWidget.rowCount()
@@ -185,6 +200,9 @@ class MainApp(QtWidgets.QMainWindow):
                 writer = csv.writer(file, delimiter=',')
                 for row in self.db.execute('SELECT * FROM tab_data'):
                     writer.writerow(list(row[1:]))
+        else:
+            self.error = QtWidgets.QErrorMessage()
+            self.error.showMessage("No file to save")
 
 
     def closeEvent(self, event):

@@ -59,13 +59,29 @@ class ColumnConfiguration(QtWidgets.QDialog):
         self.ui.scrollArea.setWidget(self.ui.scrollAreaWidget)
 
     def check_edits(self):
+        y_o_a_count = 0
+        names = []
+        types = []
         for item in range(len(self.line_edits)):
             if self.line_edits[item].text() == '':
                 self.error = QtWidgets.QErrorMessage()
                 self.error.showMessage("Please fill all boxes")
                 return
-            self.column_name.append(self.line_edits[item].text())
-            self.column_name_type.append(self.line_edits_type[item].currentText())
+            if self.line_edits_type[item].currentText() == 'Year of Apprenticeship':
+                y_o_a_count += 1
+                if y_o_a_count > 1:
+                    self.error = QtWidgets.QErrorMessage()
+                    self.error.showMessage("Please enter only one year of apprenticeship")
+                    return
+            names.append(self.line_edits[item].text())
+            types.append(self.line_edits_type[item].currentText())
+
+        self.column_name = names
+        self.column_name_type = types
+        if 'Date' in self.column_name_type:
+            QtWidgets.QMessageBox.question(self, 'Date Entering', "Please enter the dates \n"
+                                                                  "yyyy-mm-dd (d = day, m = month, y = year)",
+                                           QtWidgets.QMessageBox.Ok)
 
         self.accept()
 
