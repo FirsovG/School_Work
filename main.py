@@ -1,4 +1,5 @@
 import sys
+import platform
 import sqlite3
 from json import dumps, loads
 from copy import deepcopy
@@ -155,13 +156,13 @@ class MainApp(QtWidgets.QMainWindow):
                         tmp = self.ui.tableWidget.item(row, col).text()
                         if self.column_types[col - 1] == 'Number'\
                                 or self.column_types[col - 1] == 'Year of Apprenticeship':
-                            if tmp.isdigit():
-                                tmp = int(tmp)
-                            else:
+                            if not tmp.isdigit():
+                                # tmp = int(tmp)
                                 self.error = QtWidgets.QErrorMessage()
                                 self.error.showMessage("Please enter a Number into \n"
                                                        f"row:{row + 1} col:{col}")
                                 return
+
                         values.append(tmp)
                 else:
                     col_with_null_value.append(col)
@@ -187,14 +188,23 @@ class MainApp(QtWidgets.QMainWindow):
             elif col_with_null_value != [] or int(values[0]) not in row_exists:
                 self.db.execute('INSERT INTO tab_data({0}) VALUES ({1});'.format(",".join(db_cols)
                                                                                  , ('?,' * len(db_cols))[:-1]), values)
-                self.ui.tableWidget.setItem(row, 0, QtWidgets.QTableWidgetItem(str(int(row_exists[-1]) + 1)))
+                if row_exists == []:
+                    for last_rows in self.db.execute('SELECT seq FROM sqlite_sequence WHERE name = "tab_data"'):
+                        last_row = last_rows[0]
+                else:
+                    last_row = int(row_exists[-1]) + 1
+
+                self.ui.tableWidget.setItem(row, 0, QtWidgets.QTableWidgetItem(str(last_row)))
 
     def add_student(self):
         last_row = self.ui.tableWidget.rowCount()
         self.ui.tableWidget.insertRow(last_row)
 
     def csv_export(self):
-        file_name = QtWidgets.QFileDialog.getSaveFileName(self, directory='/home', caption='Open File', filter='All Files (*.csv)')[0]
+        dir = "/"
+        if platform.system() == 'Linux':
+            dir = "/home"
+        file_name = QtWidgets.QFileDialog.getSaveFileName(self, directory=dir, caption='Open File', filter='All Files (*.csv)')[0]
         if file_name:
             with open(file_name, 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=',')
